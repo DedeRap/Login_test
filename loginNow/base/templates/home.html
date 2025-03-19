@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+{% csrf_token %}
+{% if user.is_authenticated %}
+<li>home page, {{user.first_name}}</li>
+<a href="{% url "base:logout" %}"> Logout</a>
+{% endif %}
+{% endblock content %}
