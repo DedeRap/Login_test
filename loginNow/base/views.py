@@ -31,6 +31,11 @@ from django.contrib import messages
 class CustomLoginView(LoginView):
     template_name = 'registration/login.html'  # Pastikan sama dengan file HTML kamu
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['RECAPTCHA_PUBLIC_KEY'] = settings.RECAPTCHA_PUBLIC_KEY
+        return context
+
     def form_valid(self, form):
         recaptcha_response = self.request.POST.get('g-recaptcha-response')
         data = {

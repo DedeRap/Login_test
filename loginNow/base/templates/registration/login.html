@@ -7,7 +7,7 @@
             {% csrf_token %}
             {{form.as_p}}
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-            <div class="g-recaptcha" data-sitekey=RECAPTCHA_PUBLIC_KEY></div>
+            <div class="g-recaptcha" data-sitekey="{{ RECAPTCHA_PUBLIC_KEY }}"></div>
             <br/>
             {% if messages %}
             <ul class="messages">

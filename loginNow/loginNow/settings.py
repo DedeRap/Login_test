@@ -30,12 +30,12 @@ DEBUG = config('DJANGO_DEBUG', default=False, cast=bool) # Use False if do you w
 ALLOWED_HOSTS = config('DJANGO_ALLOWED_HOSTS', cast=Csv())
 
 
-SECURE_HSTS_SECONDS = 0  # atau jangan set sama sekali
+SECURE_HSTS_SECONDS = 31536000  # atau jangan set sama sekali(Kalau mau set pake 31536000 = 1 tahun!)
 SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
-SECURE_HSTS_INCLUDE_SUBDOMAINS = False
-SECURE_HSTS_PRELOAD = False
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 
 # Application definition
 
