@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+from decouple import config, Csv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,24 +22,46 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-8*2o(w2(&jcy+!i@=daxzrvgxo^h)4a$fqf+0fmugsvr9rcve3'
+SECRET_KEY = config('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DJANGO_DEBUG', default=False, cast=bool) # Use False if do you want page not found(404)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('DJANGO_ALLOWED_HOSTS', cast=Csv())
 
+
+SECURE_HSTS_SECONDS = 0  # atau jangan set sama sekali
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # 'django.contrib.sites',
+    'django_extensions',
+    'social_django',
+    'django_recaptcha',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'base',
+]
+
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    'social_core.backends.google.GoogleOAuth2',
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 MIDDLEWARE = [
@@ -48,6 +72,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'social_django.middleware.SocialAuthExceptionMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'base.middleware.DisableBackAfterLogoutMiddleware',  # Tambahkan ini
 ]
 
@@ -124,6 +150,34 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+    }
+}
+
+# Dari Google Cloud Console
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('DJANGO_AUTH_GOOGLE_OAUTH2_KEY')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('DJANGO_AUTH_GOOGLE_OAUTH2_SECRET')
 
 LOGIN_REDIRECT_URL = "base:home"
 LOGOOUT_REDIRECT_URL = "base:login"
+
+#Kirim Email (Paling utama buat OTP)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend' #(Pake ini kalau mau kirim email beneran)
+#EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' #(Pake ini kalau mau kirim email percobaan bukan sungguhan!)
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = config('DJANG_EMAIL_PORT')
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'dederadeaajiprasojo@gmail.com'
+EMAIL_HOST_PASSWORD = config('DJANGO_HOST_PASS')
+
+#RECAPTCHA
+RECAPTCHA_PUBLIC_KEY = config('PUBLICKEY_RECAPTCHA')
+RECAPTCHA_PRIVATE_KEY = config('PRIVATEKEY_RECAPTCHA')
+RECAPTCHA_USE_SSL = True
+AUTHENTICATION_FORM = 'base.forms.CaptchaLoginForm'
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+DOMAIN = '127.0.0.1:8000'  # atau ganti dengan domain aslimu saat deploy
