@@ -18,6 +18,10 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+handler404 = 'base.views.custom_404'
+
+handler500 = 'base.views.custom_500'
+
 urlpatterns = [
     path("", include(("base.urls", "base"), "base")),
 ] + static(settings.STATIC_URL)
