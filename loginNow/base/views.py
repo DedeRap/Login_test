@@ -123,8 +123,8 @@ def authView(request):
 
             # Kirim OTP ke email
             send_mail(
-                'Your OTP Code',
-                f'Your verification code is: {otp}',
+                'Kode OTP dari Eltekers',
+                f'Kode OTP Verifikasi anda adalah: {otp}',
                 'dederadeaajiprasojo@gmail.com',
                 [email],
                 fail_silently=False,
