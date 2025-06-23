@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block head %}
+    {{ block.super }}
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+{% endblock head %}
+
+{% block content %}
+<div class="shadow-wrap">
+    <div class="form-wrap">
+        <h2 class="form-title">Masuk</h2>
+        <p class="form-subtitle">
+            Belum punya akun? <a href="{% url 'account_signup' %}" style="text-decoration: none; font-weight: bold; color: #10182F;">Daftar di sini</a>.
+        </p>
+
+        <form class="login" method="POST" action="{% url 'account_login' %}">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="alert">
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="form-field-container">
+                <label for="{{ form.login.id_for_label }}">Username atau Email:</label>
+                {{ form.login }}
+                {% for error in form.login.errors %}<div class="error">{{ error }}</div>{% endfor %}
+            </div>
+
+            <div class="form-field-container">
+                <label for="{{ form.password.id_for_label }}">Kata Sandi:</label>
+                {{ form.password }}
+                {% for error in form.password.errors %}<div class="error">{{ error }}</div>{% endfor %}
+            </div>
+
+            <p style="margin-top:0; margin-bottom: 20px;"><a class="Forgotten-password" href="{% url "account_reset_password" %}">Lupa Sandi?</a></p>
+
+            <button type="submit" class="reset-pass" style="width: 100%;">Masuk</button>
+            
+            <hr style="margin: 30px 0;">
+            <p class="text-center">Atau masuk dengan</p>
+            {% include 'socialaccount/snippets/provider_list.html' with process="login" %}
+        </form>
+    </div>
+</div>
+{% endblock %}

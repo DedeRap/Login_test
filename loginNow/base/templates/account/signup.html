@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<div class="shadow-wrap">
+    <div class="form-wrap">
+        <h3>Daftar</h3>
+
+        <form method="POST">
+            {% csrf_token %}
+
+            <p>
+                <label for="{{ form.username.id_for_label }}">Username:</label>
+                {{ form.username }}
+                {% if form.username.errors %}
+                    <a class="error">{{ form.username.errors.0 }}</a>
+                {% endif %}
+            </p>
+
+            <p>
+                <label for="{{ form.email.id_for_label }}">Email:</label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                    <a class="error">{{ form.email.errors.0 }}</a>
+                {% endif %}
+            </p>
+
+            <p>
+                <label for="{{ form.password1.id_for_label }}">Password:</label>
+                {{ form.password1 }}
+                {% if form.password1.errors %}
+                    <a class="error">{{ form.password1.errors.0 }}</a>
+                {% endif %}
+            </p>
+
+            <p>
+                <label for="{{ form.password2.id_for_label }}">Konfirmasi Password:</label>
+                {{ form.password2 }}
+                {% if form.password2.errors %}
+                    <a class="error">{{ form.password2.errors.0 }}</a>
+                {% endif %}
+            </p>
+
+            {% include 'registration\social_logins.html' %}
+
+            <button type="submit">Daftar</button>
+        </form>
+
+        <a class="signup-link" href="{% url 'login' %}">Masuk</a>
+    </div>
+</div>
+{% endblock %}

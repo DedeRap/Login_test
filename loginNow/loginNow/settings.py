@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 from decouple import config, Csv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -36,16 +37,19 @@ SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Application definition
 
 INSTALLED_APPS = [
+    'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # 'django.contrib.sites',
+    'django.contrib.sites',
     'django_extensions',
     'social_django',
     'django_recaptcha',
@@ -54,6 +58,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'base',
+    'guardian',
 ]
 
 SITE_ID = 1
@@ -61,6 +66,7 @@ SITE_ID = 1
 AUTHENTICATION_BACKENDS = [
     'social_core.backends.google.GoogleOAuth2',
     'django.contrib.auth.backends.ModelBackend',
+    'guardian.backends.ObjectPermissionBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
@@ -74,7 +80,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'social_django.middleware.SocialAuthExceptionMiddleware',
     'allauth.account.middleware.AccountMiddleware',
-    'base.middleware.DisableBackAfterLogoutMiddleware',  # Tambahkan ini
+    'base.middleware.DisableBackAfterLogoutMiddleware',  #Cegah user bisa masuk ke home lagi setelah logout
 ]
 
 ROOT_URLCONF = 'loginNow.urls'
@@ -118,6 +124,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8, # Panjang minimal password
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -143,7 +152,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -152,23 +167,50 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
+        'APP': {
+            'client_id': config('DJANGO_AUTH_GOOGLE_OAUTH2_KEY'),
+            'secret': config('DJANGO_AUTH_GOOGLE_OAUTH2_SECRET'),
+        },
         'SCOPE': ['profile', 'email'],
-        'AUTH_PARAMS': {'access_type': 'online'},
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+            'prompt': 'select_account',
+            },
+        'OAUTH_PKCE_ENABLED': True,
     }
 }
 
+ACCOUNT_FORMS = {
+    'login': 'base.forms.CustomLoginForm', # Ganti 'myapp' dengan nama aplikasi Anda
+}
+
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "login"
+
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+# MENJADI INI (Sesuai Peringatan Terbaru)
+ACCOUNT_LOGIN_METHODS = ['email', 'username']
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_ADAPTER = 'base.views.CustomAccountAdapter'
+ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+
 # Dari Google Cloud Console
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('DJANGO_AUTH_GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('DJANGO_AUTH_GOOGLE_OAUTH2_SECRET')
-
-LOGIN_REDIRECT_URL = "base:home"
-LOGOOUT_REDIRECT_URL = "base:login"
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = ACCOUNT_EMAIL_VERIFICATION
+SOCIALACCOUNT_ADAPTER = 'base.views.SocialAccountAdapter'
 
 #Kirim Email (Paling utama buat OTP)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend' #(Pake ini kalau mau kirim email beneran)
 #EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' #(Pake ini kalau mau kirim email percobaan bukan sungguhan!)
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = config('DJANG_EMAIL_PORT')
+EMAIL_PORT = config('DJANGO_EMAIL_PORT')
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'dederadeaajiprasojo@gmail.com'
 EMAIL_HOST_PASSWORD = config('DJANGO_HOST_PASS')
@@ -177,7 +219,39 @@ EMAIL_HOST_PASSWORD = config('DJANGO_HOST_PASS')
 RECAPTCHA_PUBLIC_KEY = config('PUBLICKEY_RECAPTCHA')
 RECAPTCHA_PRIVATE_KEY = config('PRIVATEKEY_RECAPTCHA')
 RECAPTCHA_USE_SSL = True
-AUTHENTICATION_FORM = 'base.forms.CaptchaLoginForm'
+# AUTHENTICATION_FORM = 'base.forms.CaptchaLoginForm'
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-DOMAIN = '127.0.0.1:8000'  # atau ganti dengan domain aslimu saat deploy
+# DOMAIN = '127.0.0.1:8000'  # atau ganti dengan domain aslimu saat deploy
+
+# URL untuk mengakses file media di browser
+MEDIA_URL = '/media/'
+
+# Path absolut ke folder tempat file media akan disimpan
+MEDIA_ROOT = BASE_DIR / 'media'
+
+print("="*50, file=sys.stderr)
+print("!!! DIAGNOSIS FINAL LOKASI TEMPLATE !!!", file=sys.stderr)
+
+try:
+    # Kita ambil path dari setting TEMPLATES yang sudah ada
+    template_dir_path = TEMPLATES[0]['DIRS'][0]
+    
+    # Kita gabungkan dengan path template allauth yang ingin kita timpa
+    search_template_path = os.path.join(template_dir_path, 'account', 'password_reset.html')
+    
+    print(f"--> Django seharusnya mencari password_reset.html di path ini:\n    {search_template_path}", file=sys.stderr)
+    
+    # Sekarang, kita cek apakah file itu benar-benar ada di path tersebut
+    if os.path.exists(search_template_path):
+        print("\n--> STATUS: File DITEMUKAN. Secara teknis, ini seharusnya bekerja.", file=sys.stderr)
+        print("--> KESIMPULAN: Jika masih gagal, kemungkinan ada konflik antar aplikasi (misal: allauth vs social_django).", file=sys.stderr)
+    else:
+        print("\n--> STATUS: File TIDAK DITEMUKAN.", file=sys.stderr)
+        print("--> KESIMPULAN: Inilah akar masalahnya. Path atau nama folder Anda tidak cocok 100%.", file=sys.stderr)
+        print("--> SOLUSI: Pastikan nama folder adalah 'templates', lalu 'account', dan lokasinya sejajar dengan 'manage.py'.", file=sys.stderr)
+        
+except Exception as e:
+    print("--> Terjadi error saat melakukan pemeriksaan:", e, file=sys.stderr)
+
+print("="*50, file=sys.stderr)

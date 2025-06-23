@@ -11,9 +11,9 @@
     </form>
 
     <!-- Tombol Resend OTP  -->
-    <form method="POST" action="{% url 'base:resend_otp' %}">
+    <form method="POST" action="{% url 'resend_otp' %}">
       {% csrf_token %}
-      <!-- <a class="resend-otp" style="color: #10182F; font-size: 15px; margin-top: 20px; text-align: center; line-height: 25px; display: block; text-decoration: none; text-decoration: underline;" href="{% url 'base:resend_otp' %}">Signup</a> -->
+      <!-- <a class="resend-otp" style="color: #10182F; font-size: 15px; margin-top: 20px; text-align: center; line-height: 25px; display: block; text-decoration: none; text-decoration: underline;" href="{% url 'resend_otp' %}">Signup</a> -->
       <button type="submit" style="margin-top: 10px;">Kirim Ulang OTP</button>
       {% if messages %}
         {% for message in messages %}

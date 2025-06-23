@@ -2,9 +2,10 @@ import random
 import requests
 from django.conf import settings
 from django.core.mail import send_mail
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.forms import UserCreationForm
 from base.forms import CustomUserCreationForm # Dari base itu sendiri!
+from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.cache import never_cache
 from django.contrib.auth.models import auth
@@ -27,39 +28,71 @@ from django.contrib.auth import authenticate
 from django.contrib.auth import login
 from django.contrib.auth.models import User
 from django.contrib import messages
+from django.urls import reverse
+from allauth.account.utils import send_email_confirmation
+from django.contrib.auth.views import redirect_to_login
+from .forms import *
+from allauth.account.adapter import DefaultAccountAdapter
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from allauth.account.models import EmailAddress
+from django.shortcuts import resolve_url
+from django.contrib.auth import get_user_model
+from .forms import ProfileForm
+from .forms import CustomLoginForm
+
+User = get_user_model()
+class CustomAccountAdapter(DefaultAccountAdapter):
+    def get_signup_redirect_url(self, request):
+        return resolve_url("profile-onboarding") 
+    
+    
+class SocialAccountAdapter(DefaultSocialAccountAdapter):
+    def pre_social_login(self, request, sociallogin):
+        email = sociallogin.account.extra_data.get("email")
+        
+        if not email:
+            return
+        
+        if not sociallogin.is_existing:
+            existing_user = User.objects.filter(email=email).first()
+            if existing_user:
+                sociallogin.connect(request, existing_user)
+        
+        if sociallogin.is_existing: 
+            user = sociallogin.user
+            email_address, created = EmailAddress.objects.get_or_create(user=user, email=email)
+            if not email_address.verified:
+                email_address.verified = True
+                email_address.save()
+                
+                
+    def save_user(self, request, sociallogin, form=None):
+        user = super().save_user(request, sociallogin, form)
+        email = user.email
+        email_address, created = EmailAddress.objects.get_or_create(user=user, email=email)
+        if not email_address.verified:
+            email_address.verified = True
+            email_address.save()
+            
+        return user
 
 class CustomLoginView(LoginView):
-    template_name = 'registration/login.html'  # Pastikan sama dengan file HTML kamu
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['RECAPTCHA_PUBLIC_KEY'] = settings.RECAPTCHA_PUBLIC_KEY
-        return context
-
-    def form_valid(self, form):
-        recaptcha_response = self.request.POST.get('g-recaptcha-response')
-        data = {
-            'secret': settings.RECAPTCHA_PRIVATE_KEY,  # simpan di settings.py
-            'response': recaptcha_response
-        }
-        r = requests.post('https://www.google.com/recaptcha/api/siteverify', data=data)
-        result = r.json()
-
-        if result.get('success'):
-            return super().form_valid(form)
-        else:
-            messages.error(self.request, 'Verifikasi reCAPTCHA gagal. Silakan centang terlebih dahulu.*')
-            return self.form_invalid(form)  
+    """
+    View login ini sekarang menggunakan form kustom yang sudah
+    menangani validasi reCAPTCHA secara otomatis.
+    """
+    template_name = 'account/login.html'
+    form_class = CustomLoginForm  # <-- INI BAGIAN KUNCINYA!  
 
 class PasswordResetView(PasswordContextMixin, FormView):
-    email_template_name = 'registration/password_reset_email.html'
+    email_template_name = 'account/password_reset_email.html'
     extra_email_context = None
     form_class = PasswordResetForm
     from_email = 'dederadeaajiprasojo@gmail.com'
     html_email_template_name = None
-    subject_template_name = 'registration/password_reset_subject.txt'
+    subject_template_name = 'account/password_reset_subject.txt'
     success_url = reverse_lazy('password_reset_done')
-    template_name = 'registration/password_reset_form.html'
+    template_name = 'account/password_reset_form.html'
     title = 'Password reset'
     token_generator = default_token_generator 
     def get_context_data(self, **kwargs):
@@ -98,28 +131,41 @@ class PasswordResetView(PasswordContextMixin, FormView):
 def home(request):
     return render(request, "home.html", {})
 
+@login_required
+def profile_edit(request):
+    profile, created = Profile.objects.get_or_create(user=request.user)
+
+    if request.method == 'POST':
+        form = ProfileForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Profil Anda telah berhasil diperbarui!')
+            return redirect('home')
+    else:
+        form = ProfileForm(instance=profile)
+        
+    return render(request, 'profile_edit.html', {'form': form})
+
 
 # Signup Views and OTP
+@never_cache
+@require_http_methods(["GET", "POST"])
 def authView(request):
     if request.method == "POST":
-        #form = UserCreationForm(request.POST)
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
-            # Ambil data dari form
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password1')
-            email = request.POST.get('email')  # Pastikan email ikut diambil
+            user = form.save(commit=False) # Buat objek user tanpa simpan ke DB dulu
+            user.is_active = False # Set sebagai tidak aktif
+            user.save() # Simpan user ke DB
 
             otp = str(random.randint(100000, 999999))
+            email = form.cleaned_data.get('email')
 
             # Simpan semua data ke session sementara
+            request.session['otp_user_id'] = user.id
             request.session['otp'] = otp
-            request.session['registration_data'] = {
-                'username': username,
-                'password': password,
-                'email': email,
-            }
             request.session['otp_created_time'] = timezone.now().isoformat()
+            request.session['otp_attempts'] = 0 # Inisialisasi penghitung percobaan
 
             # Kirim OTP ke email
             send_mail(
@@ -129,103 +175,111 @@ def authView(request):
                 [email],
                 fail_silently=False,
             )
-
-            return redirect("base:otp_verify")
+            messages.success(request, f"Kode OTP telah dikirim ke {email}. Mohon periksa email Anda.")
+            return redirect("otp_verify")
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, error)
     else:
-        form = UserCreationForm()
-    return render(request, "registration/signup.html", {"form": form})
+        form = CustomUserCreationForm()
+    return render(request, "account/signup.html", {"form": form})
 
-from django.utils import timezone
-from datetime import timedelta
-
+@never_cache
 def otp_verify(request):
     otp_time_str = request.session.get("otp_created_time")
-    expiry_timestamp = None  # default, supaya tidak error di GET
-
-    if otp_time_str:
-        otp_time = timezone.datetime.fromisoformat(otp_time_str)
-        expiry_time = otp_time + timedelta(minutes=5)
-        expiry_timestamp = int(expiry_time.timestamp() * 1000)  # untuk JavaScript (ms)
+    user_id = request.session.get("otp_user_id")
+    
+    if not all([otp_time_str, user_id]):
+        messages.error(request, "Sesi tidak valid. Mohon lakukan pendaftaran ulang.")
+        return redirect('signup')
+    
+    otp_time = timezone.datetime.fromisoformat(otp_time_str)
+    expiry_time = otp_time + timedelta(minutes=5)
+    expiry_timestamp = int(expiry_time.timestamp() * 1000)
 
     if request.method == "POST":
         input_code = request.POST.get("otp")
         otp_code = request.session.get("otp")
-        data = request.session.get("registration_data", {})
-
-        if not all([input_code, otp_code, otp_time_str, data]):
-            return render(request, "registration/otp_verify.html", {
-                "error": "Session expired or invalid data. Please sign up again.",
-                "otp_expiry_timestamp": expiry_timestamp
-            })
+        dattempts = request.session.get('otp_attempts', 0)
 
         # Cek apakah OTP sudah kadaluarsa
-        if timezone.now() - otp_time > timedelta(minutes=5):
+        if timezone.now() > expiry_time:
             request.session.flush()
-            return render(request, "registration/otp_verify.html", {
-                "error": "OTP expired. Please sign up again.",
-                "otp_expiry_timestamp": 0
-            })
+            messages.error(request, "OTP sudah kadaluarsa. Mohon lakukan pendaftaran ulang.")
+            return redirect('signup')
 
         if input_code == otp_code:
-            # Buat user sekarang karena OTP cocok
-            user = User.objects.create_user(
-                username=data.get("username"),
-                email=data.get("email"),
-                password=data.get("password")
-            )
-            user.is_active = True
-            user.save()
+            try:
+                user = User.objects.get(id=user_id)
+                user.is_active = True
+                user.save()
 
-            # Bersihkan session
-            request.session.pop("otp", None)
-            request.session.pop("registration_data", None)
-            request.session.pop("otp_created_time", None)
+                request.session.flush()
 
-            return redirect("base:login")
+                messages.success(request, "Verifikasi berhasil! Akun Anda telah diaktifkan. Silahkan login.")
+                return redirect("login")
+            
+            except User.DoesNotExist:
+                messages.error(request, "Terjadi kesalahan. User tidak ditemukan.")
+                return redirect('signup')
         else:
-            return render(request, "registration/otp_verify.html", {
-                "error": "Wrong OTP!, Please check your email and try again!",
-                "otp_expiry_timestamp": expiry_timestamp
-            })
+            # Jika OTP salah, tingkatkan jumlah percobaan
+            attempts += 1
+            request.session['otp_attempts'] = attempts
 
-    # Untuk GET (pertama kali buka halaman)
-    return render(request, "registration/otp_verify.html", {
-        "otp_expiry_timestamp": expiry_timestamp
-    })
+            if attempts >= 5:
+                # Terlalu banyak percobaan, hapus sesi dan redirect
+                user = User.objects.get(id=user_id)
+                user.delete() # Hapus user yang tidak aktif agar username/email bisa dipakai lagi
+                request.session.flush()
+                messages.error(request, "Terlalu banyak percobaan OTP yang salah. Pendaftaran dibatalkan.")
+                return redirect('signup')
+            
+            remaining_attempts = 5 - attempts
+            messages.error(request, f"Kode OTP salah! Anda memiliki {remaining_attempts} percobaan lagi.")
+            # Tetap di halaman yang sama
+            return render(request, "account/otp_verify.html", { "otp_expiry_timestamp": expiry_timestamp })
+
+    # Untuk method GET (saat halaman pertama kali dimuat)
+    return render(request, "account/otp_verify.html", { "otp_expiry_timestamp": expiry_timestamp })
 
 def resend_otp(request):
-    data = request.session.get("registration_data", {})
-    if not data:
-        return redirect("base:signup")  # Redirect kalau data user nggak ada
+    user_id = request.session.get("otp_user_id")
+    if not user_id:
+        messages.error(request, "Sesi tidak valid untuk mengirim ulang OTP.")
+        return redirect("signup")
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        messages.error(request, "User tidak ditemukan.")
+        return redirect("signup")
 
     # Buat OTP baru
     otp = str(random.randint(100000, 999999))
     request.session['otp'] = otp
     request.session['otp_created_time'] = timezone.now().isoformat()
+    request.session['otp_attempts'] = 0 # Reset percobaan
 
-    # Kirim ulang ke email
     send_mail(
-        'Your New OTP Code',
-        f'Your new verification code is: {otp}',
+        'Kode OTP Baru Anda',
+        f'Kode verifikasi baru Anda adalah: {otp}',
         'dederadeaajiprasojo@gmail.com',
-        [data.get("email")],
+        [user.email], # Ambil email dari objek user
         fail_silently=False,
     )
 
-    messages.success(request, "OTP has been resent to your email.")
-    return redirect("base:otp_verify")
+    messages.success(request, "OTP telah dikirim ulang ke email Anda.")
+    return redirect("otp_verify")
 
 def custom_logout(request):
-    logout(request)
-    response = redirect('base:login')  
+    auth.logout(request)
+    response = redirect('login')  
     response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
     return response
-
-def logout(request):
-    auth.logout(request)
-    return redirect('/')
 
 def custom_404(request, exception):
     return render(request, '404.html', status=404)
