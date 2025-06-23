@@ -229,29 +229,3 @@ MEDIA_URL = '/media/'
 
 # Path absolut ke folder tempat file media akan disimpan
 MEDIA_ROOT = BASE_DIR / 'media'
-
-print("="*50, file=sys.stderr)
-print("!!! DIAGNOSIS FINAL LOKASI TEMPLATE !!!", file=sys.stderr)
-
-try:
-    # Kita ambil path dari setting TEMPLATES yang sudah ada
-    template_dir_path = TEMPLATES[0]['DIRS'][0]
-    
-    # Kita gabungkan dengan path template allauth yang ingin kita timpa
-    search_template_path = os.path.join(template_dir_path, 'account', 'password_reset.html')
-    
-    print(f"--> Django seharusnya mencari password_reset.html di path ini:\n    {search_template_path}", file=sys.stderr)
-    
-    # Sekarang, kita cek apakah file itu benar-benar ada di path tersebut
-    if os.path.exists(search_template_path):
-        print("\n--> STATUS: File DITEMUKAN. Secara teknis, ini seharusnya bekerja.", file=sys.stderr)
-        print("--> KESIMPULAN: Jika masih gagal, kemungkinan ada konflik antar aplikasi (misal: allauth vs social_django).", file=sys.stderr)
-    else:
-        print("\n--> STATUS: File TIDAK DITEMUKAN.", file=sys.stderr)
-        print("--> KESIMPULAN: Inilah akar masalahnya. Path atau nama folder Anda tidak cocok 100%.", file=sys.stderr)
-        print("--> SOLUSI: Pastikan nama folder adalah 'templates', lalu 'account', dan lokasinya sejajar dengan 'manage.py'.", file=sys.stderr)
-        
-except Exception as e:
-    print("--> Terjadi error saat melakukan pemeriksaan:", e, file=sys.stderr)
-
-print("="*50, file=sys.stderr)
